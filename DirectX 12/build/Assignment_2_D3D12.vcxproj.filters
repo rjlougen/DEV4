@@ -15,6 +15,9 @@
     <ClInclude Include="..\MeshObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ModelImporter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\CMakeLists.txt" />

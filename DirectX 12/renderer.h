@@ -6,6 +6,7 @@
 
 #include "FSLogo.h"
 #include "MeshObject.h"
+#include "build/ModelImporter.h"
 
 struct SHADER_VARS {
 	GW::MATH::GMATRIXF worldMatrix;
@@ -81,6 +82,8 @@ class Renderer
 
 	GW::MATH::GMatrix GMatrix;
 
+	ModelImporter importer;
+
 	// Saving these values from Gateware for efficiency
 	Microsoft::WRL::ComPtr<IDXGISwapChain4>		m_pSwapChain;
 	Microsoft::WRL::ComPtr<ID3D12Device5>		m_pDevice;
@@ -118,10 +121,9 @@ public:
 		CreateMesh();
 		CreateProjection();
 		CreateView();
-		// TODO: part 2b
-		
-		// TODO: Part 4f
-		// TODO: Part 1c
+
+		// Import model information
+		importer.LoadGameLevel("../GameLevel.txt");
 
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  

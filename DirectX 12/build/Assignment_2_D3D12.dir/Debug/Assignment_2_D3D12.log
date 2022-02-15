@@ -1,15 +1,2 @@
-﻿..\PixelShader.hlsl(46,26): warning G089EA9BC: implicit truncation of vector type [-Wconversion]
-      float3 V = normalize(cameraAndLights.camPos - inputPixel.posW);
-                           ^
-..\PixelShader.hlsl(47,27): warning G089EA9BC: implicit truncation of vector type [-Wconversion]
-      float3 refl = reflect(normalize(cameraAndLights.sunDir), normalize(inputPixel.nrmW));
-                            ^
-  
-..\VertexShader.hlsl(56,20): warning G089EA9BC: implicit truncation of vector type [-Wconversion]
-      returnVal.nrmW = mul(meshInfo.world, float4(inputVertex.Norm, 1.0f));
-                     ^
-..\VertexShader.hlsl(58,20): warning G089EA9BC: implicit truncation of vector type [-Wconversion]
-      returnVal.posW = mul(meshInfo.world, float4(inputVertex.Pos, 1.0f));
-                     ^
-  
+﻿  main.cpp
   Assignment_2_D3D12.vcxproj -> C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\build\Debug\Assignment_2_D3D12.exe
