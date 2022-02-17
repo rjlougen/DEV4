@@ -1,5 +1,6 @@
 #pragma once
 #include <fstream>
+#include "../h2bParser.h"
 
 class ModelImporter {
 public:
@@ -119,7 +120,10 @@ public:
 		return row;
 	}
 
-	void LoadOBJ() {
+	H2B::Parser LoadOBJ(std::string filename) {
+		H2B::Parser objParse;
+		objParse.Parse(filename.c_str());
 
+		return objParse;
 	}
 };

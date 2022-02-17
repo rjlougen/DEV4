@@ -8,17 +8,8 @@
 #include "MeshObject.h"
 #include "build/ModelImporter.h"
 
-struct SHADER_VARS {
-	GW::MATH::GMATRIXF worldMatrix;
-	GW::MATH::GMATRIXF viewMatrix;
-	GW::MATH::GMATRIXF projectionMatrix;
-
-	SHADER_VARS() {
-		GW::MATH::GMatrix::IdentityF(worldMatrix);
-		GW::MATH::GMatrix::IdentityF(viewMatrix);
-		GW::MATH::GMatrix::IdentityF(projectionMatrix);
-	}
-};
+// @TODO - use data oriented rendering
+// @TODO - change from constant buffer to structured buffer, constant buffer will be too small
 
 struct SCENE_DATA {
 	GW::MATH::GVECTORF sunDir, sunColor, sunAmbient, camPos;
@@ -32,18 +23,18 @@ struct MESH_DATA {
 	unsigned padding[28];
 };
 
-// @ROB
+// vertex buffer/indexs contains every unique mesh
+// need map of map<unique, offset in vertex buffer>. inside of unique is world matrix/mesh/etc...
+
+// @RAYTRACING
 struct AccelerationStructureBuffers
 {
 	ID3D12Resource* pScratch;
 	ID3D12Resource* pResult;
 	ID3D12Resource* pInstanceDesc;    // Used only for top-level AS
 };
-
 D3D12_HEAP_PROPERTIES kUploadHeapProps;
-
 D3D12_HEAP_PROPERTIES kDefaultHeapProps;
-
 ID3D12Resource* mpTopLevelAS;
 ID3D12Resource* mpBottomLevelAS;
 uint64_t mTlasSize = 0;
@@ -57,35 +48,34 @@ class Renderer
 	// what we need at a minimum to draw a triangle
 	D3D12_VERTEX_BUFFER_VIEW					vertexView;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		vertexBuffer;
-	// TODO: Part 1g
+
 	D3D12_INDEX_BUFFER_VIEW						indexView;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		indexBuffer;
-	// TODO: Part 2c
+
 	Microsoft::WRL::ComPtr<ID3D12Resource>		constantBuffer;
-	// TODO: Part 2e
+
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descHeap;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature>	rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState>	pipeline;
-	// TODO: Part 2a
-	//GW::MATH::GMATRIXF worldMatrix;
-	//GW::MATH::GMATRIXF viewMatrix;
-	//GW::MATH::GMATRIXF projectionMatrix;
 
-	//GW::MATH::GVECTORF lightDirection;
-	//GW::MATH::GVECTORF lightColor;
-
-	// TODO: Part 2b
 	SCENE_DATA scene;
 	MESH_DATA mesh01[2];
-	// TODO: Part 4f
 
 	GW::MATH::GMatrix GMatrix;
 	GW::INPUT::GInput GInput;
 
 	ModelImporter importer;
 
-	// Saving these values from Gateware for efficiency
+	unsigned int currentOffset = 0;
+
+	std::map<unsigned int, H2B::Parser> meshMap;
+	std::vector<OBJ_VERT> masterListOfVerts = {};
+	std::vector<unsigned int> masterListOfIndices = {};
+
+	std::vector<MESH_DATA> worldMeshes;
+
+	// Saving these values from Gateware for efficiency for raytracing
 	Microsoft::WRL::ComPtr<IDXGISwapChain4>		m_pSwapChain;
 	Microsoft::WRL::ComPtr<ID3D12Device5>		m_pDevice;
 	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> m_pCommandList;
@@ -127,37 +117,38 @@ public:
 
 		// Import model information
 		importer.LoadGameLevel("../GameLevel.txt");
+		LoadObject("../FSLogo.h2b");
 
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(FSLogo_vertices)),
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(masterListOfVerts.size() * sizeof(OBJ_VERT)),
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBuffer));
 		// Transfer triangle data to the vertex buffer.
 		UINT8* transferMemoryLocation;
 		vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation));
-		memcpy(transferMemoryLocation, FSLogo_vertices, sizeof(FSLogo_vertices));
+		memcpy(transferMemoryLocation, masterListOfVerts.data(), masterListOfVerts.size() * sizeof(OBJ_VERT));
 		vertexBuffer->Unmap(0, nullptr);
 		// Create a vertex View to send to a Draw() call.
 		vertexView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
 		vertexView.StrideInBytes = sizeof(OBJ_VERT); // TODO: Part 1e
-		vertexView.SizeInBytes = sizeof(FSLogo_vertices); // TODO: Part 1d
+		vertexView.SizeInBytes = masterListOfVerts.size() * sizeof(OBJ_VERT); // TODO: Part 1d
 
 		// TODO: Part 1g
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(FSLogo_indices)),
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(masterListOfIndices.size() * sizeof(unsigned int)),
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&indexBuffer));
 
 		UINT8* transferMemoryLocation2;
 		indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation2));
-		memcpy(transferMemoryLocation2, FSLogo_indices, sizeof(FSLogo_indices));
+		memcpy(transferMemoryLocation2, masterListOfIndices.data(), masterListOfIndices.size() * sizeof(unsigned int));
 		indexBuffer->Unmap(0, nullptr);
 
 		indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
 		indexView.Format = DXGI_FORMAT_R32_UINT;
-		indexView.SizeInBytes = sizeof(FSLogo_indices); // TODO: Part 1d
+		indexView.SizeInBytes = masterListOfIndices.size() * sizeof(unsigned int); // TODO: Part 1d
 
 		// TODO: Part 2d
 		IDXGISwapChain4 *swapChain = nullptr;
@@ -166,38 +157,38 @@ public:
 		swapChain->GetDesc(&desc);
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer((sizeof(SCENE_DATA) + (2 * sizeof(MESH_DATA))) * desc.BufferCount),
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer((sizeof(SCENE_DATA) + (meshMap.size() * sizeof(MESH_DATA))) * desc.BufferCount),
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constantBuffer));
 		
-		//?????????????????????????
 		UINT8* transferMemoryLocation3;
 		UINT sceneOffset = 0;
-		UINT frameOffset = sizeof(SCENE_DATA) + sizeof(MESH_DATA) + sizeof(MESH_DATA);
+		UINT frameOffset = sizeof(SCENE_DATA) + (meshMap.size() * sizeof(MESH_DATA));
+		
+		std::vector<H2B::Parser> key;
+		std::vector<unsigned int> value;
+		for (std::map<unsigned int, H2B::Parser>::iterator it = meshMap.begin(); it != meshMap.end(); ++it) {
+			value.push_back(it->first);
+			key.push_back(it->second);
+		}
 
 		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation3));
 		memcpy(&transferMemoryLocation3[sceneOffset], &scene, sizeof(scene));
 		memcpy(&transferMemoryLocation3[sceneOffset + frameOffset], &scene, sizeof(scene));
 		sceneOffset += sizeof(scene);
-		memcpy(&transferMemoryLocation3[sceneOffset], &mesh01, sizeof(mesh01));
-		memcpy(&transferMemoryLocation3[sceneOffset + frameOffset], &mesh01, sizeof(mesh01));
+		memcpy(&transferMemoryLocation3[sceneOffset], key.data(), key.size() * sizeof(MESH_DATA));
+		memcpy(&transferMemoryLocation3[sceneOffset + frameOffset], key.data(), key.size() * sizeof(MESH_DATA));
 		constantBuffer->Unmap(0, nullptr);
 
-		// TODO: Part 2e
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		heapDesc.NumDescriptors = 1;
-		HRESULT result = creator->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&descHeap));
+		creator->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&descHeap));
 
-		if (result != S_OK) {
-			int here = 0;
-		}
-
-		// TODO: Part 2f
 		D3D12_CONSTANT_BUFFER_VIEW_DESC constDesc;
 		constDesc.BufferLocation = constantBuffer->GetGPUVirtualAddress();
-		constDesc.SizeInBytes = CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + (1 * sizeof(MESH_DATA))) * desc.BufferCount);
+		constDesc.SizeInBytes = CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + (meshMap.size() * sizeof(MESH_DATA))) * desc.BufferCount);
 		creator->CreateConstantBufferView(&constDesc, descHeap->GetCPUDescriptorHandleForHeapStart());
 
 		// Create Vertex Shader
@@ -238,10 +229,6 @@ public:
 		rootParam[0].InitAsConstantBufferView(0, 0); // camera & lights
 		rootParam[1].InitAsConstantBufferView(1, 0); // mesh
 
-
-		//CD3DX12_ROOT_PARAMETER rootParam;
-		//rootParam.InitAsConstants(48, 2);
-
 		// create root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.Init(2, rootParam, 0, nullptr, 
@@ -251,6 +238,7 @@ public:
 			D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errors);
 		creator->CreateRootSignature(0, signature->GetBufferPointer(), 
 			signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
+
 		// create pipeline state
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psDesc;
 		ZeroMemory(&psDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
@@ -268,14 +256,16 @@ public:
 		psDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 		psDesc.SampleDesc.Count = 1;
 		creator->CreateGraphicsPipelineState(&psDesc, IID_PPV_ARGS(&pipeline));
+
+		// @RAYTRACING
+		//uint32_t vertexCount[1] = { 3885 };
+		//CreateAccelerationStructures(vertexBuffer.Get(), vertexCount, sizeof(OBJ_VERT));
+
 		// free temporary handle
 		creator->Release();
 		swapChain->Release();
-
-		//(ID3D12Resource * vertexBuffer, uint32_t vertexCount[], uint32_t strideInBytes)
-		uint32_t vertexCount[1] = { 3885 };
-		CreateAccelerationStructures(vertexBuffer.Get(), vertexCount, sizeof(OBJ_VERT));
 	}
+
 	void Render()
 	{
 		// TODO: Part 4d
@@ -293,33 +283,31 @@ public:
 		cmd->SetDescriptorHeaps(0, &descHeap);
 		//cmd->SetGraphicsRootConstantBufferView(0, constantBuffer->GetGPUVirtualAddress());
 		UINT sceneOffset = sizeof(SCENE_DATA);
-		UINT frameOffset = sizeof(SCENE_DATA) + sizeof(MESH_DATA) + sizeof(MESH_DATA);
+		UINT frameOffset = sizeof(SCENE_DATA) + (masterListOfVerts.size() * sizeof(OBJ_VERT));
 		UINT frameNumber = 0;
-		d3d.GetSwapChainBufferIndex(frameNumber);
+		//d3d.GetSwapChainBufferIndex(frameNumber);
 
 		D3D12_GPU_VIRTUAL_ADDRESS address = constantBuffer->GetGPUVirtualAddress();
 
 		// SCENE
 		cmd->SetGraphicsRootConstantBufferView(0, address + (frameOffset * frameNumber));
 
-		// TODO: Part 4e
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 		cmd->SetPipelineState(pipeline.Get());
 		// now we can draw
 		cmd->IASetVertexBuffers(0, 1, &vertexView);
 		cmd->IASetIndexBuffer(&indexView);
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		// TODO: Part 1h
-		// TODO: Part 3b
-			// TODO: Part 3c
-			// TODO: Part 4e
+
 		RotateLogo();
-		for (size_t i = 0; i < FSLogo_meshcount; i++)
-		{
-			// MESH
-			cmd->SetGraphicsRootConstantBufferView(1, address + sceneOffset + (frameOffset * frameNumber));
-			cmd->DrawIndexedInstanced(FSLogo_meshes[i].indexCount, 1, FSLogo_meshes[i].indexOffset, 0, 0); // TODO: Part 1c
-			sceneOffset += sizeof(MESH_DATA);
+		
+		for (std::map<unsigned int, H2B::Parser>::iterator it = meshMap.begin(); it != meshMap.end(); ++it) {
+			for (size_t i = 0; i < it->second.meshes.size(); i++)
+			{
+				cmd->SetGraphicsRootConstantBufferView(1, address + sceneOffset + (frameOffset * frameNumber));
+				cmd->DrawIndexedInstanced(it->second.meshes[i].drawInfo.indexCount, 1, it->second.meshes[i].drawInfo.indexOffset, 0, 0);
+				sceneOffset += sizeof(MESH_DATA);
+			}
 		}
 		// release temp handles
 		cmd->Release();
@@ -336,8 +324,17 @@ public:
 		mesh01[0].material = FSLogo_materials[0].attrib;
 		GMatrix.IdentityF(mesh01[0].world);
 
+		MESH_DATA temp = mesh01[0];
+		worldMeshes.push_back(temp);
+
+		//meshMap.insert(meshMap.begin(), std::pair<unsigned int, MESH_DATA>(0, temp));
+
 		mesh01[1].material = FSLogo_materials[1].attrib;
 		GMatrix.IdentityF(mesh01[1].world);
+
+		temp = mesh01[1];
+
+		//meshMap.insert(meshMap.begin(), std::pair<unsigned int, MESH_DATA>(3885, temp));
 	}
 
 	void CreateProjection() {
@@ -455,7 +452,30 @@ public:
 		constantBuffer->Unmap(0, nullptr);
 	}
 
-	// Raytracing
+	void LoadObject(std::string path) {
+		H2B::Parser tempParser = importer.LoadOBJ(path);
+
+		for (size_t i = 0; i < tempParser.vertices.size(); i++)
+		{
+			OBJ_VERT tempVert;
+			tempVert.pos = { tempParser.vertices[i].pos.x, tempParser.vertices[i].pos.y, tempParser.vertices[i].pos.z };
+			tempVert.nrm = { tempParser.vertices[i].nrm.x, tempParser.vertices[i].nrm.y, tempParser.vertices[i].nrm.z };
+			tempVert.uvw = { tempParser.vertices[i].uvw.x, tempParser.vertices[i].uvw.y, tempParser.vertices[i].uvw.z };
+
+			masterListOfVerts.push_back(tempVert);
+		}
+
+		for (size_t i = 0; i < tempParser.indices.size(); i++)
+		{
+			masterListOfIndices.push_back(tempParser.indices[i]);
+		}
+
+		unsigned int currentOffset = masterListOfVerts.size() * sizeof(OBJ_VERT);
+
+		meshMap.insert(std::pair<unsigned int, H2B::Parser>(currentOffset, tempParser));
+	}
+
+	// @RAYTRACING
 	ID3D12Resource* CreateBuffer(uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initState, const D3D12_HEAP_PROPERTIES& heapProps)
 	{
 		D3D12_RESOURCE_DESC bufDesc = {};
@@ -482,6 +502,7 @@ public:
 		return pBuffer;
 	}
 	
+	// @RAYTRACING
 	void CreateAccelerationStructures(ID3D12Resource* vertexBuffer, uint32_t vertexCount[], uint32_t strideInBytes)
 	{
 		d3d.GetFence((void**)&m_pFence);
@@ -509,7 +530,7 @@ public:
 		mpBottomLevelAS = bottomLevelBuffers.pResult;
 	}
 
-	// @ROB
+	// @RAYTRACING
 	AccelerationStructureBuffers CreateBottomLevelAS(ID3D12GraphicsCommandList4* pCmdList, ID3D12Resource* pVB[], const uint32_t vertexCount[], uint32_t strideBytes, uint32_t geometryCount)
 	{
 		std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geomDesc;
@@ -578,7 +599,7 @@ public:
 		return buffers;
 	}
 
-	// @ROB
+	// @RAYTRACING
 	AccelerationStructureBuffers CreateTopLevelAS(ID3D12GraphicsCommandList4* pCmdList, ID3D12Resource* pBottomLevelAS, uint64_t& tlasSize)
 	{
 		// First, get the size of the TLAS buffers and create them
@@ -637,7 +658,7 @@ public:
 		return buffers;
 	}
 
-	// @ROB
+	// @RAYTRACING
 	void SubmitCommandList(ID3D12GraphicsCommandList4* pCmdList, ID3D12CommandQueue* pCmdQueue, ID3D12Fence* pFence, uint64_t fenceValue, uint64_t outFenceValue)
 	{
 		pCmdList->Close();
