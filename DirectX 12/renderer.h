@@ -81,6 +81,7 @@ class Renderer
 	// TODO: Part 4f
 
 	GW::MATH::GMatrix GMatrix;
+	GW::INPUT::GInput GInput;
 
 	ModelImporter importer;
 
@@ -103,6 +104,8 @@ public:
 		GMatrix.Create();
 		GMatrix.IdentityF(mesh01[0].world);
 		GMatrix.IdentityF(mesh01[1].world);
+
+		GInput.Create(_win);
 
 		IDXGISwapChain4* swapChainTemp;
 		d3d.GetSwapchain4((void**)&swapChainTemp);
@@ -377,6 +380,78 @@ public:
 		offset += sizeof(scene);
 		memcpy(&transferMemoryLocation3[offset], &mesh01, sizeof(mesh01));
 		memcpy(&transferMemoryLocation3[offset + frameOffset], &mesh01, sizeof(mesh01));
+		constantBuffer->Unmap(0, nullptr);
+	}
+
+	std::chrono::steady_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
+	void UpdateCamera() {
+		GMatrix.InverseF(scene.viewMatrix, scene.viewMatrix);
+
+		auto deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - lastTime);
+		lastTime = std::chrono::high_resolution_clock::now();
+		float totalYChange, totalXChange, totalZChange, totalPitch, totalYaw;
+		const float Camera_Speed = 0.3f;
+
+		float yUp, yDown, zUp, zDown, xUp, xDown, yContState, xContState;
+		GInput.GetState(G_KEY_SPACE, yUp);
+		GInput.GetState(G_KEY_LEFTSHIFT, yDown);
+		GInput.GetState(G_KEY_D, xUp);
+		GInput.GetState(G_KEY_A, xDown);
+		GInput.GetState(G_KEY_W, zUp);
+		GInput.GetState(G_KEY_S, zDown);
+		GInput.GetState(VK_GAMEPAD_LEFT_THUMBSTICK_UP, xContState);
+		GInput.GetState(VK_GAMEPAD_LEFT_THUMBSTICK_LEFT, yContState);
+
+		totalXChange = xUp - xDown;
+		totalYChange = yUp - yDown + xContState;
+		totalZChange = zUp - zDown + yContState;
+
+		float x = 0, y = 0;
+		GW::GReturn result = GInput.GetMouseDelta(x, y);
+		if (G_PASS(result) && result != GW::GReturn::REDUNDANT)
+		{
+			totalPitch = 1.5f * y / 500.0f;
+			totalYaw = 1.5f * x / 500.0f;
+
+			GW::MATH::GMATRIXF pitchMatrix;
+			GMatrix.IdentityF(pitchMatrix);
+			GMatrix.RotateXLocalF(pitchMatrix, totalPitch, pitchMatrix);
+			GMatrix.MultiplyMatrixF(pitchMatrix, scene.viewMatrix, scene.viewMatrix);
+
+			GW::MATH::GVECTORF TempPos;
+			TempPos = scene.viewMatrix.row4;
+			scene.viewMatrix.row4 = { 0,0,0,1 };
+
+			GW::MATH::GMATRIXF yawMatrix;
+			GMatrix.IdentityF(yawMatrix);
+			GMatrix.RotateYLocalF(yawMatrix, totalYaw, yawMatrix);
+
+			GMatrix.MultiplyMatrixF(scene.viewMatrix, yawMatrix, scene.viewMatrix);
+			scene.viewMatrix.row4 = TempPos;
+		}
+
+
+		/*At the top of this function use std::chrono to query the amount
+		of time that passes from one call of this function to the next.
+		If you’re unsure how to use the standard libraries to achieve this,
+		you can also grab the XTime class from CGS,
+		just be aware that unlike std::chrono this class is Windows only.*/
+
+		GW::MATH::GVECTORF Translate = { 0.0f, 0.0f, 0.0f, 0.0f };
+		Translate.x += totalXChange * Camera_Speed * deltaTime.count() / 1000.0f;
+		Translate.y += totalYChange * Camera_Speed * deltaTime.count() / 1000.0f;
+		Translate.z += totalZChange * Camera_Speed * deltaTime.count() / 1000.0f;
+		GMatrix.TranslateLocalF(scene.viewMatrix, Translate, scene.viewMatrix);
+
+		GMatrix.InverseF(scene.viewMatrix, scene.viewMatrix);
+
+		UINT8* transferMemoryLocation3;
+		UINT offset = 0;
+		UINT frameOffset = sizeof(SCENE_DATA) + sizeof(MESH_DATA) + sizeof(MESH_DATA);
+		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+			reinterpret_cast<void**>(&transferMemoryLocation3));
+		memcpy(&transferMemoryLocation3[offset], &scene, sizeof(scene));
+		memcpy(&transferMemoryLocation3[offset + frameOffset], &scene, sizeof(scene));
 		constantBuffer->Unmap(0, nullptr);
 	}
 

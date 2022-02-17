@@ -4,6 +4,7 @@
 #define GATEWARE_ENABLE_GRAPHICS // Enables all Graphics Libraries
 // TODO: Part 2a
 #define GATEWARE_ENABLE_MATH 
+#define GATEWARE_ENABLE_INPUT
 // Ignore some GRAPHICS libraries we aren't going to use
 #define GATEWARE_DISABLE_GDIRECTX11SURFACE // we have another template for this
 #define GATEWARE_DISABLE_GOPENGLSURFACE // we have another template for this
@@ -51,6 +52,7 @@ int main()
 					{
 						cmd->ClearRenderTargetView(rtv, clr, 0, nullptr);
 						cmd->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1, 0, 0, nullptr);
+						renderer.UpdateCamera();
 						renderer.Render(); // draw
 						d3d12.EndFrame(false);
 						cmd->Release();
