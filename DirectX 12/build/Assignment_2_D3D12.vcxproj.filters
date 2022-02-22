@@ -27,6 +27,9 @@
     <ClInclude Include="..\ModelImporter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\DXRPipeline.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\CMakeLists.txt" />
@@ -43,12 +46,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="..\PixelShader.hlsl">
-      <Filter>Header Files</Filter>
-    </FxCompile>
-    <FxCompile Include="..\VertexShader.hlsl">
-      <Filter>Header Files</Filter>
-    </FxCompile>
     <FxCompile Include="..\Common.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
@@ -59,6 +56,12 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="..\ClosestHit.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\VertexShader.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\PixelShader.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

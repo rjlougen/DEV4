@@ -13,6 +13,7 @@
 // With what we want & what we don't defined we can include the API
 #include "../Gateware/GatewareCustom.h"
 #include "renderer.h"
+
 // open some namespaces to compact the code a bit
 using namespace GW;
 using namespace CORE;
@@ -39,6 +40,7 @@ int main()
 		if (+d3d12.Create(win, GW::GRAPHICS::DEPTH_BUFFER_SUPPORT))
 		{
 			Renderer renderer(win, d3d12); // init
+
 			while (+win.ProcessWindowEvents())
 			{
 				if (+d3d12.StartFrame())

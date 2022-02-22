@@ -303,6 +303,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   <ItemGroup>
     <ClCompile Include="C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\main.cpp" />
     <ClInclude Include="..\Camera.h" />
+    <ClInclude Include="..\DXRPipeline.h" />
     <ClInclude Include="..\FSLogo.h" />
     <ClInclude Include="..\h2bParser.h" />
     <ClInclude Include="..\Helpers.h" />

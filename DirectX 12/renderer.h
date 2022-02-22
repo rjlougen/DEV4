@@ -1,46 +1,17 @@
-// minimalistic code to draw a single triangle, this is not part of the API.
-// required for compiling shaders on the fly, consider pre-compiling instead
+// @TODO - use data oriented rendering
+// @TODO - change from constant buffer to structured buffer, constant buffer will be too small
+
+// vertex buffer/indexs contains every unique mesh
+// need map of map<unique, offset in vertex buffer>. inside of unique is world matrix/mesh/etc...
+
 #include <d3dcompiler.h>
 #pragma comment(lib, "d3dcompiler.lib")
 #include "d3dx12.h" // official helper file provided by microsoft
 
 #include "DXRPipeline.h"
-#include "MeshObject.h"
-#include "Camera.h"
 #include "ModelImporter.h"
 
-#include "FSLogo.h"
-
-// @TODO - use data oriented rendering
-// @TODO - change from constant buffer to structured buffer, constant buffer will be too small
-
-struct SCENE_DATA {
-	GW::MATH::GVECTORF sunDir, sunColor, sunAmbient, camPos;
-	GW::MATH::GMATRIXF viewMatrix, projectionMatrix;
-	GW::MATH::GVECTORF padding[4];
-};
-
-struct MESH_DATA {
-	GW::MATH::GMATRIXF world;
-	OBJ_ATTRIBUTES material;
-	unsigned padding[28];
-};
-
-// vertex buffer/indexs contains every unique mesh
-// need map of map<unique, offset in vertex buffer>. inside of unique is world matrix/mesh/etc...
-
-// @RAYTRACING
-struct AccelerationStructureBuffers
-{
-	ID3D12Resource* pScratch;
-	ID3D12Resource* pResult;
-	ID3D12Resource* pInstanceDesc;    // Used only for top-level AS
-};
-D3D12_HEAP_PROPERTIES kUploadHeapProps;
-D3D12_HEAP_PROPERTIES kDefaultHeapProps;
-ID3D12Resource* mpTopLevelAS;
-ID3D12Resource* mpBottomLevelAS;
-uint64_t mTlasSize = 0;
+using namespace Microsoft::WRL;
 
 // Creation, Rendering & Cleanup
 class Renderer
@@ -48,6 +19,14 @@ class Renderer
 	// proxy handles
 	GW::SYSTEM::GWindow win;
 	GW::GRAPHICS::GDirectX12Surface d3d;
+
+	// Gateware required variables
+	GW::MATH::GMatrix GMatrix;
+	GW::INPUT::GInput GInput;
+
+	// Imports models and game levels
+	ModelImporter importer;
+
 	// what we need at a minimum to draw a triangle
 	D3D12_VERTEX_BUFFER_VIEW					vertexView;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		vertexBuffer;
@@ -55,37 +34,25 @@ class Renderer
 	D3D12_INDEX_BUFFER_VIEW						indexView;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		indexBuffer;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource>		constantBuffer;
-
+	Microsoft::WRL::ComPtr<ID3D12Resource>		constantBuffer; // Holds information about scene and all the meshes
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descHeap;
-
 	Microsoft::WRL::ComPtr<ID3D12RootSignature>	rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState>	pipeline;
 
-	SCENE_DATA scene;
-	MESH_DATA mesh01[2];
+	DXRPipeline									dxrPipeline;
+	bool										bUseRaytracing = false;
+	std::vector<MeshObject>						models;
+	Camera*										mainCamera;
 
-	GW::MATH::GMatrix GMatrix;
-	GW::INPUT::GInput GInput;
+	SCENE_DATA scene; // @TODO - replace me
+	MESH_DATA mesh01[2]; // @TODO - replace me
 
-	ModelImporter importer;
-
+	// Data oriented variables
 	unsigned int currentOffset = 0;
-
 	std::map<unsigned int, H2B::Parser> meshMap;
 	std::vector<OBJ_VERT> masterListOfVerts = {};
 	std::vector<unsigned int> masterListOfIndices = {};
-
 	std::vector<MESH_DATA> worldMeshes;
-
-	// Saving these values from Gateware for efficiency for raytracing
-	Microsoft::WRL::ComPtr<IDXGISwapChain4>		m_pSwapChain;
-	Microsoft::WRL::ComPtr<ID3D12Device5>		m_pDevice;
-	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> m_pCommandList;
-	Microsoft::WRL::ComPtr<ID3D12CommandQueue>  m_pCommandQueue;
-	Microsoft::WRL::ComPtr<ID3D12Fence>			m_pFence;
-	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> m_pCommandAllocator;
-	UINT64										m_fenceValue;
 public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
 	{
@@ -93,25 +60,12 @@ public:
 		d3d = _d3d;
 		ID3D12Device5* creator;
 		d3d.GetDevice((void**)&creator);
-		// TODO: part 2a
-		GMatrix.Create();
-		GMatrix.IdentityF(mesh01[0].world);
-		GMatrix.IdentityF(mesh01[1].world);
 
+		GMatrix.Create();
 		GInput.Create(_win);
 
-		IDXGISwapChain4* swapChainTemp;
-		d3d.GetSwapchain4((void**)&swapChainTemp);
-		m_pSwapChain = swapChainTemp;
-		m_pDevice = creator;
-
-		ID3D12GraphicsCommandList4* commandListTemp;
-		d3d.GetCommandList((void**)&commandListTemp);
-		m_pCommandList = commandListTemp;
-
-		ID3D12CommandQueue* commandQueueTemp;
-		d3d.GetCommandQueue((void**)&commandQueueTemp);
-		m_pCommandQueue = commandQueueTemp;
+		mainCamera = new Camera();
+		mainCamera->InitCamera(creator, d3d, win);
 
 		CreateLights();
 		CreateMesh();
@@ -119,9 +73,19 @@ public:
 		CreateView();
 
 		// Import model information
-		importer.LoadGameLevel("../GameLevel.txt");
+		std::vector<GameLevel> gameLevel = importer.LoadGameLevel("../GameLevel.txt");
+
+		for (size_t i = 0; i < gameLevel.size(); i++)
+		{
+			// load object
+			// set object matrix
+		}
 		LoadObject("../FSLogo.h2b");
 
+		// Raytracing
+		dxrPipeline.InitializeDXRPipeline(win, d3d, models, mainCamera);
+
+		// Non-raytracing
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(masterListOfVerts.size() * sizeof(OBJ_VERT)),
@@ -183,6 +147,8 @@ public:
 		memcpy(&transferMemoryLocation3[sceneOffset + frameOffset], key.data(), key.size() * sizeof(MESH_DATA));
 		constantBuffer->Unmap(0, nullptr);
 
+		// Descriptor heap is essentially an array of descriptors
+		// 1 - Constant buffer
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
@@ -191,7 +157,7 @@ public:
 
 		D3D12_CONSTANT_BUFFER_VIEW_DESC constDesc;
 		constDesc.BufferLocation = constantBuffer->GetGPUVirtualAddress();
-		constDesc.SizeInBytes = CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + (meshMap.size() * sizeof(MESH_DATA))) * desc.BufferCount);
+		constDesc.SizeInBytes = Helpers::CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + (meshMap.size() * sizeof(MESH_DATA))) * desc.BufferCount);
 		creator->CreateConstantBufferView(&constDesc, descHeap->GetCPUDescriptorHandleForHeapStart());
 
 		// Create Vertex Shader
@@ -216,7 +182,7 @@ public:
 			std::cout << (char*)errors->GetBufferPointer() << std::endl;
 			abort();
 		}	
-		// TODO: Part 1e
+
 		// Create Input Layout
 		D3D12_INPUT_ELEMENT_DESC format[] = {
 			{ 
@@ -227,12 +193,14 @@ public:
 			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		};
-		// TODO: Part 2g
+		
+		// Used in rootSignature
 		CD3DX12_ROOT_PARAMETER rootParam[2];
 		rootParam[0].InitAsConstantBufferView(0, 0); // camera & lights
 		rootParam[1].InitAsConstantBufferView(1, 0); // mesh
 
 		// create root signature
+		// specifies the data types that shaders should expect from the application
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.Init(2, rootParam, 0, nullptr, 
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -243,6 +211,8 @@ public:
 			signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
 
 		// create pipeline state
+		//used to describe how the graphics/compute pipeline will behave 
+		//in every Pipeline Stage when we are going to render/dispatch something.
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psDesc;
 		ZeroMemory(&psDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 		psDesc.InputLayout = { format, ARRAYSIZE(format) };
@@ -268,12 +238,6 @@ public:
 		srvDesc.Buffer.FirstElement = 0;
 		srvDesc.Buffer.NumElements = worldMeshes.size();
 		srvDesc.Buffer.StructureByteStride = sizeof(worldMeshes[0].world); //cannot be larger than 1024
-		// create SRV
-		//creator->CreateShaderResourceView(resource.Get(), &srvDesc, rtv);
-		
-		// @RAYTRACING
-		//uint32_t vertexCount[1] = { 3885 };
-		//CreateAccelerationStructures(vertexBuffer.Get(), vertexCount, sizeof(OBJ_VERT));
 
 		// free temporary handle
 		creator->Release();
@@ -282,50 +246,59 @@ public:
 
 	void Render()
 	{
-		// TODO: Part 4d
-		// grab the context & render target
-		ID3D12GraphicsCommandList* cmd;
-		D3D12_CPU_DESCRIPTOR_HANDLE rtv;
-		D3D12_CPU_DESCRIPTOR_HANDLE dsv;
-		d3d.GetCommandList((void**)&cmd);
-		d3d.GetCurrentRenderTargetView((void**)&rtv);
-		d3d.GetDepthStencilView((void**)&dsv);
-		// setup the pipeline
-		cmd->SetGraphicsRootSignature(rootSignature.Get());
-		
-		// TODO: Part 2h
-		cmd->SetDescriptorHeaps(0, &descHeap);
-		//cmd->SetGraphicsRootConstantBufferView(0, constantBuffer->GetGPUVirtualAddress());
-		UINT sceneOffset = sizeof(SCENE_DATA);
-		UINT frameOffset = sizeof(SCENE_DATA) + (masterListOfVerts.size() * sizeof(OBJ_VERT));
-		UINT frameNumber = 0;
-		//d3d.GetSwapChainBufferIndex(frameNumber);
-
-		D3D12_GPU_VIRTUAL_ADDRESS address = constantBuffer->GetGPUVirtualAddress();
-
-		// SCENE
-		cmd->SetGraphicsRootConstantBufferView(0, address + (frameOffset * frameNumber));
-		//cmd->SetGraphicsRootShaderResourceView();
-
-		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
-		cmd->SetPipelineState(pipeline.Get());
-		// now we can draw
-		cmd->IASetVertexBuffers(0, 1, &vertexView);
-		cmd->IASetIndexBuffer(&indexView);
-		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-		RotateLogo();
-		
-		for (std::map<unsigned int, H2B::Parser>::iterator it = meshMap.begin(); it != meshMap.end(); ++it) {
-			for (size_t i = 0; i < it->second.meshes.size(); i++)
-			{
-				cmd->SetGraphicsRootConstantBufferView(1, address + sceneOffset + (frameOffset * frameNumber));
-				cmd->DrawIndexedInstanced(it->second.meshes[i].drawInfo.indexCount, 1, it->second.meshes[i].drawInfo.indexOffset, 0, 0);
-				sceneOffset += sizeof(MESH_DATA);
-			}
+		if (bUseRaytracing) {
+			RenderRaytracing();
 		}
-		// release temp handles
-		cmd->Release();
+		else {
+			// grab the context & render target
+			ID3D12GraphicsCommandList* cmd;
+			D3D12_CPU_DESCRIPTOR_HANDLE rtv;
+			D3D12_CPU_DESCRIPTOR_HANDLE dsv;
+			d3d.GetCommandList((void**)&cmd);
+			d3d.GetCurrentRenderTargetView((void**)&rtv);
+			d3d.GetDepthStencilView((void**)&dsv);
+
+			// setup the pipeline
+			cmd->SetGraphicsRootSignature(rootSignature.Get());
+
+			cmd->SetDescriptorHeaps(0, &descHeap);
+
+			UINT sceneOffset = sizeof(SCENE_DATA);
+			UINT frameOffset = sizeof(SCENE_DATA) + (masterListOfVerts.size() * sizeof(OBJ_VERT));
+			UINT frameNumber = 0;
+
+			D3D12_GPU_VIRTUAL_ADDRESS address = constantBuffer->GetGPUVirtualAddress();
+
+			// SCENE
+			cmd->SetGraphicsRootConstantBufferView(0, address + (frameOffset * frameNumber));
+
+			cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+			cmd->SetPipelineState(pipeline.Get());
+
+			// now we can draw
+			cmd->IASetVertexBuffers(0, 1, &vertexView);
+			cmd->IASetIndexBuffer(&indexView);
+			cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+			RotateLogo();
+
+			for (std::map<unsigned int, H2B::Parser>::iterator it = meshMap.begin(); it != meshMap.end(); ++it) {
+				for (size_t i = 0; i < it->second.meshes.size(); i++)
+				{
+					cmd->SetGraphicsRootConstantBufferView(1, address + sceneOffset + (frameOffset * frameNumber));
+					cmd->DrawIndexedInstanced(it->second.meshes[i].drawInfo.indexCount, 1, it->second.meshes[i].drawInfo.indexOffset, 0, 0);
+					sceneOffset += sizeof(MESH_DATA);
+				}
+			}
+			// release temp handles
+			cmd->Release();
+		}
+	}
+
+	void RenderRaytracing() {
+		dxrPipeline.StartFrame();
+		// Logic here
+		dxrPipeline.EndFrame();
 	}
 
 	void CreateLights() {
@@ -365,11 +338,6 @@ public:
 
 		GMatrix.LookAtLHF(Eye, At, Up, scene.viewMatrix);
 	}
-
-	UINT CalculateConstantBufferByteSize(UINT byteSize)
-	{
-		return (byteSize + (D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1)) & ~(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1);
-	};
 
 	void RotateLogo()
 	{
@@ -481,202 +449,11 @@ public:
 		meshMap.insert(std::pair<unsigned int, H2B::Parser>(currentOffset, tempParser));
 	}
 
-	// @RAYTRACING
-	ID3D12Resource* CreateBuffer(uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initState, const D3D12_HEAP_PROPERTIES& heapProps)
-	{
-		D3D12_RESOURCE_DESC bufDesc = {};
-		bufDesc.Alignment = 0;
-		bufDesc.DepthOrArraySize = 1;
-		bufDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		bufDesc.Flags = flags;
-		bufDesc.Format = DXGI_FORMAT_UNKNOWN;
-		bufDesc.Height = 1;
-		bufDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		bufDesc.MipLevels = 1;
-		bufDesc.SampleDesc.Count = 1;
-		bufDesc.SampleDesc.Quality = 0;
-		bufDesc.Width = size;
-
-		ID3D12Resource* pBuffer;
-		HRESULT hr = m_pDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufDesc, initState, nullptr, IID_PPV_ARGS(&pBuffer));
-		if (FAILED(hr))
-		{
-			exit(1);
-			return nullptr;
-		}
-
-		return pBuffer;
-	}
-	
-	// @RAYTRACING
-	void CreateAccelerationStructures(ID3D12Resource* vertexBuffer, uint32_t vertexCount[], uint32_t strideInBytes)
-	{
-		d3d.GetFence((void**)&m_pFence);
-
-		AccelerationStructureBuffers bottomLevelBuffers = CreateBottomLevelAS(m_pCommandList.Get(), (ID3D12Resource**)vertexBuffer, vertexCount, strideInBytes, 1);
-		AccelerationStructureBuffers topLevelBuffers = CreateTopLevelAS(m_pCommandList.Get(), bottomLevelBuffers.pResult, mTlasSize);
-
-		unsigned int fenceValue;
-		d3d.GetFenceValue(fenceValue);
-
-		HANDLE eventHandle;
-		d3d.GetEventHandle(eventHandle);
-
-		// The tutorial doesn't have any resource lifetime management, so we flush and sync here. This is not required by the DXR spec - you can submit the list whenever you like as long as you take care of the resources lifetime.
-		SubmitCommandList(m_pCommandList.Get(), m_pCommandQueue.Get(), m_pFence.Get(), fenceValue, fenceValue);
-		m_pFence->SetEventOnCompletion(fenceValue, eventHandle);
-		WaitForSingleObject(eventHandle, INFINITE);
-		uint32_t bufferIndex = m_pSwapChain->GetCurrentBackBufferIndex();
-		
-		// @ROB - this was removed because crashing
-		//m_pCommandList->Reset(m_pCommandAllocator.Get(), nullptr);
-
-		// Store the AS buffers. The rest of the buffers will be released once we exit the function
-		mpTopLevelAS = topLevelBuffers.pResult;
-		mpBottomLevelAS = bottomLevelBuffers.pResult;
-	}
-
-	// @RAYTRACING
-	AccelerationStructureBuffers CreateBottomLevelAS(ID3D12GraphicsCommandList4* pCmdList, ID3D12Resource* pVB[], const uint32_t vertexCount[], uint32_t strideBytes, uint32_t geometryCount)
-	{
-		std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geomDesc;
-		geomDesc.resize(geometryCount);
-
-		for (uint32_t i = 0; i < geometryCount; i++)
-		{
-			geomDesc[i].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-			geomDesc[i].Triangles.VertexBuffer.StartAddress = vertexBuffer->GetGPUVirtualAddress();
-			geomDesc[i].Triangles.VertexBuffer.StrideInBytes = strideBytes;
-			geomDesc[i].Triangles.VertexCount = vertexCount[i];
-			geomDesc[i].Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-			geomDesc[i].Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-		}
-
-		// Get the size requirements for the scratch and AS buffers
-		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
-		inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-		inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
-		inputs.NumDescs = geometryCount;
-		inputs.pGeometryDescs = geomDesc.data();
-		inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-
-		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
-		m_pDevice->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-
-		// Initialize these static values
-		kDefaultHeapProps =
-		{
-			D3D12_HEAP_TYPE_DEFAULT,
-			D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
-			D3D12_MEMORY_POOL_UNKNOWN,
-			0,
-			0
-		};
-
-		kUploadHeapProps =
-		{
-			D3D12_HEAP_TYPE_UPLOAD,
-			D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
-			D3D12_MEMORY_POOL_UNKNOWN,
-			0,
-			0,
-		};
-
-		// Create the buffers. They need to support UAV, and since we are going to immediately use them, we create them with an unordered-access state
-		AccelerationStructureBuffers buffers;
-
-		buffers.pScratch = CreateBuffer(info.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON, kDefaultHeapProps);
-		buffers.pResult = CreateBuffer(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, kDefaultHeapProps);
-
-		// Create the bottom-level AS
-		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC asDesc = {};
-		asDesc.Inputs = inputs;
-		asDesc.DestAccelerationStructureData = buffers.pResult->GetGPUVirtualAddress();
-		asDesc.ScratchAccelerationStructureData = buffers.pScratch->GetGPUVirtualAddress();
-
-		pCmdList->BuildRaytracingAccelerationStructure(&asDesc, 0, nullptr);
-
-		// We need to insert a UAV barrier before using the acceleration structures in a raytracing operation
-		D3D12_RESOURCE_BARRIER uavBarrier = {};
-		uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-		uavBarrier.UAV.pResource = buffers.pResult;
-		pCmdList->ResourceBarrier(1, &uavBarrier);
-
-		return buffers;
-	}
-
-	// @RAYTRACING
-	AccelerationStructureBuffers CreateTopLevelAS(ID3D12GraphicsCommandList4* pCmdList, ID3D12Resource* pBottomLevelAS, uint64_t& tlasSize)
-	{
-		// First, get the size of the TLAS buffers and create them
-		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
-		inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-		inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
-		inputs.NumDescs = 1;
-		inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-
-		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
-		m_pDevice->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-
-		// Create the buffers
-		AccelerationStructureBuffers buffers;
-		buffers.pScratch = CreateBuffer(info.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, kDefaultHeapProps);
-		buffers.pResult = CreateBuffer(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, kDefaultHeapProps);
-		tlasSize = info.ResultDataMaxSizeInBytes;
-
-		// The instance desc should be inside a buffer, create and map the buffer
-		buffers.pInstanceDesc = CreateBuffer(sizeof(D3D12_RAYTRACING_INSTANCE_DESC), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-
-		D3D12_RAYTRACING_INSTANCE_DESC* pInstanceDesc;
-		buffers.pInstanceDesc->Map(0, nullptr, (void**)&pInstanceDesc);
-
-		// Initialize the instance desc. We only have a single instance
-		pInstanceDesc->InstanceID = 0;                            // This value will be exposed to the shader via InstanceID()
-		pInstanceDesc->InstanceContributionToHitGroupIndex = 0;   // This is the offset inside the shader-table. We only have a single geometry, so the offset 0
-		pInstanceDesc->Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		GW::MATH::GMATRIXF m; // Identity matrix
-		m.row1 = { 1, 0, 0, 0 };
-		m.row2 = { 0, 1, 0, 0 };
-		m.row3 = { 0, 0, 1, 0 };
-		m.row4 = { 0, 0, 0, 1 };
-		memcpy(pInstanceDesc->Transform, &m, sizeof(pInstanceDesc->Transform));
-		pInstanceDesc->AccelerationStructure = pBottomLevelAS->GetGPUVirtualAddress();
-		pInstanceDesc->InstanceMask = 0xFF;
-
-		// Unmap
-		buffers.pInstanceDesc->Unmap(0, nullptr);
-
-		// Create the TLAS
-		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC asDesc = {};
-		asDesc.Inputs = inputs;
-		asDesc.Inputs.InstanceDescs = buffers.pInstanceDesc->GetGPUVirtualAddress();
-		asDesc.DestAccelerationStructureData = buffers.pResult->GetGPUVirtualAddress();
-		asDesc.ScratchAccelerationStructureData = buffers.pScratch->GetGPUVirtualAddress();
-
-		pCmdList->BuildRaytracingAccelerationStructure(&asDesc, 0, nullptr);
-
-		// We need to insert a UAV barrier before using the acceleration structures in a raytracing operation
-		D3D12_RESOURCE_BARRIER uavBarrier = {};
-		uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-		uavBarrier.UAV.pResource = buffers.pResult;
-		pCmdList->ResourceBarrier(1, &uavBarrier);
-
-		return buffers;
-	}
-
-	// @RAYTRACING
-	void SubmitCommandList(ID3D12GraphicsCommandList4* pCmdList, ID3D12CommandQueue* pCmdQueue, ID3D12Fence* pFence, uint64_t fenceValue, uint64_t outFenceValue)
-	{
-		pCmdList->Close();
-		ID3D12CommandList* pGraphicsList = pCmdList;
-		pCmdQueue->ExecuteCommandLists(1, &pGraphicsList);
-		fenceValue++;
-		pCmdQueue->Signal(pFence, fenceValue);
-		outFenceValue = fenceValue;
-	}
-
 	~Renderer()
 	{
-		// ComPtr will auto release so nothing to do here 
+		// ComPtr will auto release so nothing to do here
+		if (mainCamera) {
+			delete mainCamera;
+		}
 	}
 };

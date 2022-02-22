@@ -4,13 +4,7 @@
 
 class ModelImporter {
 public:
-	struct GameLevel {
-		std::string type;
-		std::string modelName;
-		GW::MATH::GMATRIXF worldMatrix;
-	};
-
-	void LoadGameLevel(std::string filename) {
+	std::vector<GameLevel> LoadGameLevel(std::string filename) {
 		std::ifstream infile(filename);
 
 		std::vector<GameLevel> returnLevel;
@@ -83,6 +77,7 @@ public:
 
 			printf("%s\n", line.c_str());
 		}
+		return returnLevel;
 	}
 
 	GW::MATH::GVECTORF ParseLine(std::string line) {
