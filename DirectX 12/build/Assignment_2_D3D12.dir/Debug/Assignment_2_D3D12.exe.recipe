@@ -10,7 +10,19 @@
   </ProjectOutputs>
   <ContentFiles>
     <ContentFile>
+      <FullPath>C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\build\Debug\ClosestHit.cso</FullPath>
+    </ContentFile>
+    <ContentFile>
+      <FullPath>C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\build\Debug\Common.cso</FullPath>
+    </ContentFile>
+    <ContentFile>
+      <FullPath>C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\build\Debug\Miss.cso</FullPath>
+    </ContentFile>
+    <ContentFile>
       <FullPath>C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\build\Debug\PixelShader.cso</FullPath>
+    </ContentFile>
+    <ContentFile>
+      <FullPath>C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\build\Debug\RayGen.cso</FullPath>
     </ContentFile>
     <ContentFile>
       <FullPath>C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\build\Debug\VertexShader.cso</FullPath>

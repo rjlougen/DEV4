@@ -15,10 +15,16 @@
     <ClInclude Include="..\MeshObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ModelImporter.h">
+    <ClInclude Include="..\h2bParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\h2bParser.h">
+    <ClInclude Include="..\Camera.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Helpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ModelImporter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -32,6 +38,9 @@
     <Filter Include="Source Files">
       <UniqueIdentifier>{8D1BF1EE-435F-35D2-811D-E8A98B3EEE15}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{fcf6ea68-3f8f-4ee7-b398-f39f3635a79d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="..\PixelShader.hlsl">
@@ -39,6 +48,18 @@
     </FxCompile>
     <FxCompile Include="..\VertexShader.hlsl">
       <Filter>Header Files</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Common.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\RayGen.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Miss.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\ClosestHit.hlsl">
+      <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

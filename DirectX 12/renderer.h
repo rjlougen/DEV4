@@ -4,9 +4,12 @@
 #pragma comment(lib, "d3dcompiler.lib")
 #include "d3dx12.h" // official helper file provided by microsoft
 
-#include "FSLogo.h"
+#include "DXRPipeline.h"
 #include "MeshObject.h"
-#include "build/ModelImporter.h"
+#include "Camera.h"
+#include "ModelImporter.h"
+
+#include "FSLogo.h"
 
 // @TODO - use data oriented rendering
 // @TODO - change from constant buffer to structured buffer, constant buffer will be too small
@@ -257,6 +260,17 @@ public:
 		psDesc.SampleDesc.Count = 1;
 		creator->CreateGraphicsPipelineState(&psDesc, IID_PPV_ARGS(&pipeline));
 
+		// srv description
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Buffer.FirstElement = 0;
+		srvDesc.Buffer.NumElements = worldMeshes.size();
+		srvDesc.Buffer.StructureByteStride = sizeof(worldMeshes[0].world); //cannot be larger than 1024
+		// create SRV
+		//creator->CreateShaderResourceView(resource.Get(), &srvDesc, rtv);
+		
 		// @RAYTRACING
 		//uint32_t vertexCount[1] = { 3885 };
 		//CreateAccelerationStructures(vertexBuffer.Get(), vertexCount, sizeof(OBJ_VERT));
@@ -291,6 +305,7 @@ public:
 
 		// SCENE
 		cmd->SetGraphicsRootConstantBufferView(0, address + (frameOffset * frameNumber));
+		//cmd->SetGraphicsRootShaderResourceView();
 
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 		cmd->SetPipelineState(pipeline.Get());
@@ -324,17 +339,8 @@ public:
 		mesh01[0].material = FSLogo_materials[0].attrib;
 		GMatrix.IdentityF(mesh01[0].world);
 
-		MESH_DATA temp = mesh01[0];
-		worldMeshes.push_back(temp);
-
-		//meshMap.insert(meshMap.begin(), std::pair<unsigned int, MESH_DATA>(0, temp));
-
 		mesh01[1].material = FSLogo_materials[1].attrib;
 		GMatrix.IdentityF(mesh01[1].world);
-
-		temp = mesh01[1];
-
-		//meshMap.insert(meshMap.begin(), std::pair<unsigned int, MESH_DATA>(3885, temp));
 	}
 
 	void CreateProjection() {

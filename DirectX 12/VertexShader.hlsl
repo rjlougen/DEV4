@@ -44,6 +44,7 @@ struct VS_INPUT
 
 ConstantBuffer<SCENE_DATA> cameraAndLights : register(b0, space0);
 ConstantBuffer<MESH_DATA> meshInfo : register(b1, space0);
+StructuredBuffer<MESH_DATA> test : register(t0, space0);
 
 OUTPUT_TO_RASTERIZER main(VS_INPUT inputVertex)
 {
