@@ -57,6 +57,8 @@ namespace H2B {
 		std::vector<MATERIAL> materials;
 		std::vector<BATCH> batches;
 		std::vector<MESH> meshes;
+
+		GW::MATH::GMATRIXF worldMatrix = GW::MATH::GIdentityMatrixF;
 		bool Parse(const char* h2bPath)
 		{
 			Clear();

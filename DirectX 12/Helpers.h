@@ -1,7 +1,7 @@
 #pragma once
 
 #include <comdef.h>
-#include "FSLogo.h"
+#include "h2bParser.h"
 
 #define align_to(_alignment, _val) (((_val + _alignment - 1) / _alignment) * _alignment)
 #define arraysize(a) (sizeof(a)/sizeof(a[0]))
@@ -34,7 +34,7 @@ struct SCENE_DATA {
 // Used for object shader information
 struct MESH_DATA {
 	GW::MATH::GMATRIXF world = GW::MATH::GIdentityMatrixF;
-	OBJ_ATTRIBUTES material;
+	H2B::ATTRIBUTES material;
 	unsigned padding[28];
 };
 

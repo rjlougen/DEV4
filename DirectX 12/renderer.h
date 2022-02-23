@@ -7,7 +7,6 @@
 #include <d3dcompiler.h>
 #pragma comment(lib, "d3dcompiler.lib")
 #include "d3dx12.h" // official helper file provided by microsoft
-
 #include "DXRPipeline.h"
 #include "ModelImporter.h"
 
@@ -45,14 +44,14 @@ class Renderer
 	Camera*										mainCamera;
 
 	SCENE_DATA scene; // @TODO - replace me
-	MESH_DATA mesh01[2]; // @TODO - replace me
 
 	// Data oriented variables
 	unsigned int currentOffset = 0;
-	std::map<unsigned int, H2B::Parser> meshMap;
-	std::vector<OBJ_VERT> masterListOfVerts = {};
-	std::vector<unsigned int> masterListOfIndices = {};
-	std::vector<MESH_DATA> worldMeshes;
+
+	std::vector<H2B::VERTEX>					masterListOfVerts = {};
+	std::vector<unsigned int>					masterListOfIndices = {};
+	std::vector<MESH_DATA>						worldMeshes;
+	std::map<std::string, MeshObject>			modelMap;
 public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
 	{
@@ -67,20 +66,19 @@ public:
 		mainCamera = new Camera();
 		mainCamera->InitCamera(creator, d3d, win);
 
-		CreateLights();
-		CreateMesh();
-		CreateProjection();
-		CreateView();
-
 		// Import model information
 		std::vector<GameLevel> gameLevel = importer.LoadGameLevel("../GameLevel.txt");
 
 		for (size_t i = 0; i < gameLevel.size(); i++)
 		{
 			// load object
+			LoadObject("../Cube_Grass_Single.h2b");
 			// set object matrix
 		}
-		LoadObject("../FSLogo.h2b");
+
+		CreateLights();
+		CreateProjection();
+		CreateView();
 
 		// Raytracing
 		dxrPipeline.InitializeDXRPipeline(win, d3d, models, mainCamera);
@@ -88,18 +86,18 @@ public:
 		// Non-raytracing
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(masterListOfVerts.size() * sizeof(OBJ_VERT)),
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(masterListOfVerts.size() * sizeof(H2B::VERTEX)),
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBuffer));
 		// Transfer triangle data to the vertex buffer.
 		UINT8* transferMemoryLocation;
 		vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation));
-		memcpy(transferMemoryLocation, masterListOfVerts.data(), masterListOfVerts.size() * sizeof(OBJ_VERT));
+		memcpy(transferMemoryLocation, masterListOfVerts.data(), masterListOfVerts.size() * sizeof(H2B::VERTEX));
 		vertexBuffer->Unmap(0, nullptr);
 		// Create a vertex View to send to a Draw() call.
 		vertexView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-		vertexView.StrideInBytes = sizeof(OBJ_VERT); // TODO: Part 1e
-		vertexView.SizeInBytes = masterListOfVerts.size() * sizeof(OBJ_VERT); // TODO: Part 1d
+		vertexView.StrideInBytes = sizeof(H2B::VERTEX); // TODO: Part 1e
+		vertexView.SizeInBytes = masterListOfVerts.size() * sizeof(H2B::VERTEX); // TODO: Part 1d
 
 		// TODO: Part 1g
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
@@ -115,7 +113,7 @@ public:
 
 		indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
 		indexView.Format = DXGI_FORMAT_R32_UINT;
-		indexView.SizeInBytes = masterListOfIndices.size() * sizeof(unsigned int); // TODO: Part 1d
+		indexView.SizeInBytes = masterListOfIndices.size() * sizeof(unsigned int);
 
 		// TODO: Part 2d
 		IDXGISwapChain4 *swapChain = nullptr;
@@ -124,27 +122,20 @@ public:
 		swapChain->GetDesc(&desc);
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer((sizeof(SCENE_DATA) + (meshMap.size() * sizeof(MESH_DATA))) * desc.BufferCount),
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(Helpers::CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + sizeof(masterListOfVerts.data()))) * desc.BufferCount),
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constantBuffer));
 		
 		UINT8* transferMemoryLocation3;
 		UINT sceneOffset = 0;
-		UINT frameOffset = sizeof(SCENE_DATA) + (meshMap.size() * sizeof(MESH_DATA));
+		UINT frameOffset = sizeof(SCENE_DATA) + (worldMeshes.size() * sizeof(MESH_DATA));
 		
-		std::vector<H2B::Parser> key;
-		std::vector<unsigned int> value;
-		for (std::map<unsigned int, H2B::Parser>::iterator it = meshMap.begin(); it != meshMap.end(); ++it) {
-			value.push_back(it->first);
-			key.push_back(it->second);
-		}
-
 		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation3));
 		memcpy(&transferMemoryLocation3[sceneOffset], &scene, sizeof(scene));
 		memcpy(&transferMemoryLocation3[sceneOffset + frameOffset], &scene, sizeof(scene));
 		sceneOffset += sizeof(scene);
-		memcpy(&transferMemoryLocation3[sceneOffset], key.data(), key.size() * sizeof(MESH_DATA));
-		memcpy(&transferMemoryLocation3[sceneOffset + frameOffset], key.data(), key.size() * sizeof(MESH_DATA));
+		memcpy(&transferMemoryLocation3[sceneOffset], worldMeshes.data(), (worldMeshes.size() * sizeof(MESH_DATA)));
+		memcpy(&transferMemoryLocation3[sceneOffset + frameOffset], worldMeshes.data(), (worldMeshes.size() * sizeof(MESH_DATA)));
 		constantBuffer->Unmap(0, nullptr);
 
 		// Descriptor heap is essentially an array of descriptors
@@ -157,7 +148,7 @@ public:
 
 		D3D12_CONSTANT_BUFFER_VIEW_DESC constDesc;
 		constDesc.BufferLocation = constantBuffer->GetGPUVirtualAddress();
-		constDesc.SizeInBytes = Helpers::CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + (meshMap.size() * sizeof(MESH_DATA))) * desc.BufferCount);
+		constDesc.SizeInBytes = Helpers::CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + (worldMeshes.size() * sizeof(MESH_DATA))) * desc.BufferCount);
 		creator->CreateConstantBufferView(&constDesc, descHeap->GetCPUDescriptorHandleForHeapStart());
 
 		// Create Vertex Shader
@@ -264,13 +255,13 @@ public:
 			cmd->SetDescriptorHeaps(0, &descHeap);
 
 			UINT sceneOffset = sizeof(SCENE_DATA);
-			UINT frameOffset = sizeof(SCENE_DATA) + (masterListOfVerts.size() * sizeof(OBJ_VERT));
+			UINT frameOffset = sizeof(SCENE_DATA) + (masterListOfVerts.size() * sizeof(H2B::VERTEX));
 			UINT frameNumber = 0;
 
 			D3D12_GPU_VIRTUAL_ADDRESS address = constantBuffer->GetGPUVirtualAddress();
 
 			// SCENE
-			cmd->SetGraphicsRootConstantBufferView(0, address + (frameOffset * frameNumber));
+			cmd->SetGraphicsRootConstantBufferView(0, Helpers::CalculateConstantBufferByteSize(address + (frameOffset * frameNumber)));
 
 			cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 			cmd->SetPipelineState(pipeline.Get());
@@ -280,16 +271,24 @@ public:
 			cmd->IASetIndexBuffer(&indexView);
 			cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-			RotateLogo();
+			//RotateLogo();
 
-			for (std::map<unsigned int, H2B::Parser>::iterator it = meshMap.begin(); it != meshMap.end(); ++it) {
+			
+			for (std::map<std::string, MeshObject>::iterator it = modelMap.begin(); it != modelMap.end(); ++it) {
+				/*
 				for (size_t i = 0; i < it->second.meshes.size(); i++)
 				{
-					cmd->SetGraphicsRootConstantBufferView(1, address + sceneOffset + (frameOffset * frameNumber));
+					cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
 					cmd->DrawIndexedInstanced(it->second.meshes[i].drawInfo.indexCount, 1, it->second.meshes[i].drawInfo.indexOffset, 0, 0);
-					sceneOffset += sizeof(MESH_DATA);
+					sceneOffset += sizeof(H2B::VERTEX);
 				}
+				*/
+				//cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
+				//cmd->DrawIndexedInstanced(it->second.indexCount, 1, it->second.indexOffset, 0, 0);
 			}
+
+			cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
+			cmd->DrawIndexedInstanced(masterListOfIndices.size(), 1, 0, 0, 0);
 			// release temp handles
 			cmd->Release();
 		}
@@ -306,14 +305,6 @@ public:
 		scene.sunDir = { -1.0f, -1.0f, 2.0f };
 		scene.camPos = { 0.75f, 0.25f, -1.5f, 1.0f };
 		scene.sunAmbient = { 0.25f, 0.25f, 0.35f, 1.0f };
-	}
-
-	void CreateMesh() {
-		mesh01[0].material = FSLogo_materials[0].attrib;
-		GMatrix.IdentityF(mesh01[0].world);
-
-		mesh01[1].material = FSLogo_materials[1].attrib;
-		GMatrix.IdentityF(mesh01[1].world);
 	}
 
 	void CreateProjection() {
@@ -341,17 +332,19 @@ public:
 
 	void RotateLogo()
 	{
-		GMatrix.RotateYGlobalF(mesh01[1].world, 0.01f, mesh01[1].world);
+		
+		GMatrix.RotateYGlobalF(worldMeshes[0].world, 0.01f, worldMeshes[0].world);
 
 		UINT8* transferMemoryLocation3;
 		UINT offset = 0;
-		UINT frameOffset = sizeof(SCENE_DATA) + sizeof(MESH_DATA) + sizeof(MESH_DATA);
+		UINT frameOffset = sizeof(SCENE_DATA) + masterListOfVerts.size() * sizeof(H2B::VERTEX);
 		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation3));
 		offset += sizeof(scene);
-		memcpy(&transferMemoryLocation3[offset], &mesh01, sizeof(mesh01));
-		memcpy(&transferMemoryLocation3[offset + frameOffset], &mesh01, sizeof(mesh01));
+		memcpy(&transferMemoryLocation3[offset], &masterListOfVerts, masterListOfVerts.size() * sizeof(H2B::VERTEX));
+		memcpy(&transferMemoryLocation3[offset + frameOffset], &masterListOfVerts, masterListOfVerts.size() * sizeof(H2B::VERTEX));
 		constantBuffer->Unmap(0, nullptr);
+		
 	}
 
 	std::chrono::steady_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
@@ -418,7 +411,7 @@ public:
 
 		UINT8* transferMemoryLocation3;
 		UINT offset = 0;
-		UINT frameOffset = sizeof(SCENE_DATA) + sizeof(MESH_DATA) + sizeof(MESH_DATA);
+		UINT frameOffset = sizeof(SCENE_DATA) + masterListOfVerts.size() * sizeof(H2B::VERTEX);
 		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation3));
 		memcpy(&transferMemoryLocation3[offset], &scene, sizeof(scene));
@@ -431,7 +424,7 @@ public:
 
 		for (size_t i = 0; i < tempParser.vertices.size(); i++)
 		{
-			OBJ_VERT tempVert;
+			H2B::VERTEX tempVert;
 			tempVert.pos = { tempParser.vertices[i].pos.x, tempParser.vertices[i].pos.y, tempParser.vertices[i].pos.z };
 			tempVert.nrm = { tempParser.vertices[i].nrm.x, tempParser.vertices[i].nrm.y, tempParser.vertices[i].nrm.z };
 			tempVert.uvw = { tempParser.vertices[i].uvw.x, tempParser.vertices[i].uvw.y, tempParser.vertices[i].uvw.z };
@@ -444,9 +437,11 @@ public:
 			masterListOfIndices.push_back(tempParser.indices[i]);
 		}
 
-		unsigned int currentOffset = masterListOfVerts.size() * sizeof(OBJ_VERT);
+		unsigned int currentOffset = masterListOfVerts.size() * sizeof(H2B::VERTEX);
 
-		meshMap.insert(std::pair<unsigned int, H2B::Parser>(currentOffset, tempParser));
+		MESH_DATA temp;
+		temp.material = tempParser.materials[0].attrib;
+		worldMeshes.push_back(temp);
 	}
 
 	~Renderer()
