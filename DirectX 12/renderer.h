@@ -77,13 +77,11 @@ public:
 					LoadObject("../" + gameLevel[i].modelName + ".h2b", gameLevel[i].modelName);
 					GMatrix.RotateXLocalF(gameLevel[i].worldMatrix, -1.5708, gameLevel[i].worldMatrix);
 					modelMap[gameLevel[i].modelName].meshInstances.world[0] = gameLevel[i].worldMatrix;
-					modelMap[gameLevel[i].modelName].meshInstances.material = modelMap[gameLevel[i].modelName].materials[0].attrib;
 					modelMap[gameLevel[i].modelName].instanceCount++;
 				}
 				else {
 					GMatrix.RotateXLocalF(gameLevel[i].worldMatrix, -1.5708, gameLevel[i].worldMatrix);
 					modelMap[gameLevel[i].modelName].meshInstances.world[modelMap[gameLevel[i].modelName].instanceCount] = gameLevel[i].worldMatrix;
-					modelMap[gameLevel[i].modelName].meshInstances.material = modelMap[gameLevel[i].modelName].materials[0].attrib;
 					modelMap[gameLevel[i].modelName].instanceCount++;
 				}
 			}
@@ -95,37 +93,6 @@ public:
 
 		// Raytracing
 		dxrPipeline.InitializeDXRPipeline(win, d3d, models, mainCamera);
-
-		// Non-raytracing
-		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(masterListOfVerts.size() * sizeof(H2B::VERTEX)),
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBuffer));
-		// Transfer triangle data to the vertex buffer.
-		UINT8* transferMemoryLocation;
-		vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-			reinterpret_cast<void**>(&transferMemoryLocation));
-		memcpy(transferMemoryLocation, masterListOfVerts.data(), masterListOfVerts.size() * sizeof(H2B::VERTEX));
-		vertexBuffer->Unmap(0, nullptr);
-		// Create a vertex View to send to a Draw() call.
-		vertexView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-		vertexView.StrideInBytes = sizeof(H2B::VERTEX); // TODO: Part 1e
-		vertexView.SizeInBytes = masterListOfVerts.size() * sizeof(H2B::VERTEX); // TODO: Part 1d
-
-		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(masterListOfIndices.size() * sizeof(unsigned int)),
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&indexBuffer));
-
-		UINT8* transferMemoryLocation2;
-		indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-			reinterpret_cast<void**>(&transferMemoryLocation2));
-		memcpy(transferMemoryLocation2, masterListOfIndices.data(), masterListOfIndices.size() * sizeof(unsigned int));
-		indexBuffer->Unmap(0, nullptr);
-
-		indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
-		indexView.Format = DXGI_FORMAT_R32_UINT;
-		indexView.SizeInBytes = masterListOfIndices.size() * sizeof(unsigned int);
 
 
 		IDXGISwapChain4 *swapChain = nullptr;
@@ -277,7 +244,7 @@ public:
 			cmd->SetDescriptorHeaps(0, &descHeap);
 
 			UINT sceneOffset = sizeof(SCENE_DATA);
-			UINT frameOffset = sizeof(SCENE_DATA) + (masterListOfVerts.size() * sizeof(H2B::VERTEX));
+			UINT frameOffset = sizeof(SCENE_DATA) + (sizeof(MESH_DATA));
 			UINT frameNumber = 0;
 
 			D3D12_GPU_VIRTUAL_ADDRESS address = constantBuffer->GetGPUVirtualAddress();

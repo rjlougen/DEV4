@@ -33,7 +33,7 @@ struct SCENE_DATA {
 
 // Used for object shader information
 struct MESH_DATA {
-	GW::MATH::GMATRIXF world[16];
+	GW::MATH::GMATRIXF world[64];
 	H2B::ATTRIBUTES material;
 	//UINT instanceOffset;
 	//unsigned padding[28];

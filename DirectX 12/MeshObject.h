@@ -111,7 +111,7 @@ public:
 			UINT frameNumber = 0;
 
 			D3D12_GPU_VIRTUAL_ADDRESS address = constantBuffer->GetGPUVirtualAddress();
-
+			
 			cmd->SetGraphicsRootConstantBufferView(1, (address + sceneOffset + (frameOffset * frameNumber)));
 		}
 
@@ -137,7 +137,7 @@ public:
 				materials[meshes[i].materialIndex].attrib.Kd.z,
 				materials[meshes[i].materialIndex].attrib.Ns,
 			};
-			cmd->SetGraphicsRoot32BitConstants(2, 4, root32BitConstants, 0);
+			cmd->SetGraphicsRoot32BitConstants(2, ARRAYSIZE(root32BitConstants), root32BitConstants, 0);
 			//cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
 			cmd->DrawIndexedInstanced(meshes[i].drawInfo.indexCount, instanceCount, meshes[i].drawInfo.indexOffset, 0, 0);
 			//sceneOffset += sizeof(MESH_DATA);

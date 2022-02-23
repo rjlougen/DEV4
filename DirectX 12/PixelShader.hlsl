@@ -33,7 +33,7 @@ struct SCENE_DATA
 
 struct MESH_DATA
 {
-    matrix world[16]; // 12
+    matrix world[64]; // 12
     OBJ_ATTRIBUTES material;
     //uint padding[28]; // 28
 };
