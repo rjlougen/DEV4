@@ -33,9 +33,9 @@ struct SCENE_DATA
 
 struct MESH_DATA
 {
-    matrix world; // 12
+    matrix world[16]; // 12
     OBJ_ATTRIBUTES material;
-    uint padding[28]; // 28
+    //uint padding[28]; // 28
 };
 
 ConstantBuffer<SCENE_DATA> cameraAndLights : register(b0, space0);

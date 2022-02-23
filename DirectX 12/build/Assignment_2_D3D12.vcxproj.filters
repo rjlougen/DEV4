@@ -1,68 +1,62 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\main.cpp">
+    <ClCompile Include="C:\Users\Rob\Desktop\Dev4\DEV4\DirectX 12\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\renderer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\FSLogo.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MeshObject.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\h2bParser.h">
+    <ClInclude Include="C:\Users\Rob\Desktop\Dev4\DEV4\DirectX 12\renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\Camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\DXRPipeline.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\h2bParser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\Helpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MeshObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\ModelImporter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\DXRPipeline.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\rob42\Desktop\Dev4 Project\DEV4\DirectX 12\CMakeLists.txt" />
+    <CustomBuild Include="C:\Users\Rob\Desktop\Dev4\DEV4\DirectX 12\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{BED75064-FA9B-380D-9DE5-D80962A3C0B4}</UniqueIdentifier>
+      <UniqueIdentifier>{E96ACE9C-EAB3-3FDD-9C48-B14AA7D8DF8D}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{8D1BF1EE-435F-35D2-811D-E8A98B3EEE15}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Shaders">
-      <UniqueIdentifier>{fcf6ea68-3f8f-4ee7-b398-f39f3635a79d}</UniqueIdentifier>
+      <UniqueIdentifier>{025BBB14-0ACC-376D-86B7-8271FE9D5461}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="..\Common.hlsl">
-      <Filter>Shaders</Filter>
+    <FxCompile Include="..\ClosestHit.hlsl">
+      <Filter>Header Files</Filter>
     </FxCompile>
-    <FxCompile Include="..\RayGen.hlsl">
-      <Filter>Shaders</Filter>
+    <FxCompile Include="..\Common.hlsl">
+      <Filter>Header Files</Filter>
     </FxCompile>
     <FxCompile Include="..\Miss.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="..\ClosestHit.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="..\VertexShader.hlsl">
-      <Filter>Shaders</Filter>
+      <Filter>Header Files</Filter>
     </FxCompile>
     <FxCompile Include="..\PixelShader.hlsl">
-      <Filter>Shaders</Filter>
+      <Filter>Header Files</Filter>
+    </FxCompile>
+    <FxCompile Include="..\RayGen.hlsl">
+      <Filter>Header Files</Filter>
+    </FxCompile>
+    <FxCompile Include="..\VertexShader.hlsl">
+      <Filter>Header Files</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

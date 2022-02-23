@@ -50,7 +50,6 @@ class Renderer
 
 	std::vector<H2B::VERTEX>					masterListOfVerts = {};
 	std::vector<unsigned int>					masterListOfIndices = {};
-	std::vector<MESH_DATA>						worldMeshes;
 	std::map<std::string, MeshObject>			modelMap;
 public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
@@ -72,8 +71,19 @@ public:
 		for (size_t i = 0; i < gameLevel.size(); i++)
 		{
 			// load object
-			LoadObject("../Cube_Grass_Single.h2b");
-			// set object matrix
+			if (gameLevel[i].modelName == "Cube_Grass_Single") {
+				if (modelMap.find(gameLevel[i].modelName) == modelMap.end()) {
+					LoadObject("../" + gameLevel[i].modelName + ".h2b", gameLevel[i].modelName);
+					modelMap[gameLevel[i].modelName].meshInstances.world[0] = gameLevel[i].worldMatrix;
+					modelMap[gameLevel[i].modelName].meshInstances.material = modelMap[gameLevel[i].modelName].materials[0].attrib;
+					modelMap[gameLevel[i].modelName].instanceCount++;
+				}
+				else {
+					modelMap[gameLevel[i].modelName].meshInstances.world[modelMap[gameLevel[i].modelName].instanceCount] = gameLevel[i].worldMatrix;
+					modelMap[gameLevel[i].modelName].meshInstances.material = modelMap[gameLevel[i].modelName].materials[0].attrib;
+					modelMap[gameLevel[i].modelName].instanceCount++;
+				}
+			}
 		}
 
 		CreateLights();
@@ -99,7 +109,6 @@ public:
 		vertexView.StrideInBytes = sizeof(H2B::VERTEX); // TODO: Part 1e
 		vertexView.SizeInBytes = masterListOfVerts.size() * sizeof(H2B::VERTEX); // TODO: Part 1d
 
-		// TODO: Part 1g
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(masterListOfIndices.size() * sizeof(unsigned int)),
@@ -115,20 +124,20 @@ public:
 		indexView.Format = DXGI_FORMAT_R32_UINT;
 		indexView.SizeInBytes = masterListOfIndices.size() * sizeof(unsigned int);
 
-		// TODO: Part 2d
+
 		IDXGISwapChain4 *swapChain = nullptr;
 		d3d.GetSwapchain4(reinterpret_cast<void**>(&swapChain));
 		DXGI_SWAP_CHAIN_DESC desc;
 		swapChain->GetDesc(&desc);
+		/*
 		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(Helpers::CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + sizeof(masterListOfVerts.data()))) * desc.BufferCount),
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(Helpers::CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + masterListOfVerts.size() * sizeof(H2B::VERTEX))) * desc.BufferCount),
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constantBuffer));
 		
 		UINT8* transferMemoryLocation3;
 		UINT sceneOffset = 0;
 		UINT frameOffset = sizeof(SCENE_DATA) + (worldMeshes.size() * sizeof(MESH_DATA));
-		
 		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation3));
 		memcpy(&transferMemoryLocation3[sceneOffset], &scene, sizeof(scene));
@@ -137,7 +146,8 @@ public:
 		memcpy(&transferMemoryLocation3[sceneOffset], worldMeshes.data(), (worldMeshes.size() * sizeof(MESH_DATA)));
 		memcpy(&transferMemoryLocation3[sceneOffset + frameOffset], worldMeshes.data(), (worldMeshes.size() * sizeof(MESH_DATA)));
 		constantBuffer->Unmap(0, nullptr);
-
+		constantBuffer->SetName(L"worldMeshes Constant Buffer");
+		*/
 		// Descriptor heap is essentially an array of descriptors
 		// 1 - Constant buffer
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
@@ -146,11 +156,12 @@ public:
 		heapDesc.NumDescriptors = 1;
 		creator->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&descHeap));
 
+		/*
 		D3D12_CONSTANT_BUFFER_VIEW_DESC constDesc;
 		constDesc.BufferLocation = constantBuffer->GetGPUVirtualAddress();
 		constDesc.SizeInBytes = Helpers::CalculateConstantBufferByteSize((sizeof(SCENE_DATA) + (worldMeshes.size() * sizeof(MESH_DATA))) * desc.BufferCount);
 		creator->CreateConstantBufferView(&constDesc, descHeap->GetCPUDescriptorHandleForHeapStart());
-
+		*/
 		// Create Vertex Shader
 		UINT compilerFlags = D3DCOMPILE_ENABLE_STRICTNESS;
 #if _DEBUG
@@ -174,6 +185,12 @@ public:
 			abort();
 		}	
 
+		// Everything should be loaded in, so create constant buffers
+		for (std::map<std::string, MeshObject>::iterator it = modelMap.begin(); it != modelMap.end(); ++it) {
+			it->second.CreateConstantBuffer(creator, scene, desc.BufferCount, descHeap);
+			constantBuffer = it->second.constantBuffer;
+		}
+
 		// Create Input Layout
 		D3D12_INPUT_ELEMENT_DESC format[] = {
 			{ 
@@ -183,6 +200,7 @@ public:
 			},
 			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "INSTANCEPOS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
 		};
 		
 		// Used in rootSignature
@@ -227,8 +245,8 @@ public:
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = worldMeshes.size();
-		srvDesc.Buffer.StructureByteStride = sizeof(worldMeshes[0].world); //cannot be larger than 1024
+		srvDesc.Buffer.NumElements = sizeof(MESH_DATA);
+		srvDesc.Buffer.StructureByteStride = sizeof(MESH_DATA); //cannot be larger than 1024
 
 		// free temporary handle
 		creator->Release();
@@ -272,23 +290,15 @@ public:
 			cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 			//RotateLogo();
-
 			
+			cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
+			//cmd->DrawIndexedInstanced(masterListOfIndices.size(), 4, 0, 0, 0);
+			 
 			for (std::map<std::string, MeshObject>::iterator it = modelMap.begin(); it != modelMap.end(); ++it) {
-				/*
-				for (size_t i = 0; i < it->second.meshes.size(); i++)
-				{
-					cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
-					cmd->DrawIndexedInstanced(it->second.meshes[i].drawInfo.indexCount, 1, it->second.meshes[i].drawInfo.indexOffset, 0, 0);
-					sceneOffset += sizeof(H2B::VERTEX);
-				}
-				*/
-				//cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
-				//cmd->DrawIndexedInstanced(it->second.indexCount, 1, it->second.indexOffset, 0, 0);
+				it->second.DrawObject(cmd);
 			}
 
-			cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
-			cmd->DrawIndexedInstanced(masterListOfIndices.size(), 1, 0, 0, 0);
+			
 			// release temp handles
 			cmd->Release();
 		}
@@ -332,7 +342,7 @@ public:
 
 	void RotateLogo()
 	{
-		
+		/*
 		GMatrix.RotateYGlobalF(worldMeshes[0].world, 0.01f, worldMeshes[0].world);
 
 		UINT8* transferMemoryLocation3;
@@ -344,7 +354,7 @@ public:
 		memcpy(&transferMemoryLocation3[offset], &masterListOfVerts, masterListOfVerts.size() * sizeof(H2B::VERTEX));
 		memcpy(&transferMemoryLocation3[offset + frameOffset], &masterListOfVerts, masterListOfVerts.size() * sizeof(H2B::VERTEX));
 		constantBuffer->Unmap(0, nullptr);
-		
+		*/
 	}
 
 	std::chrono::steady_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
@@ -414,13 +424,55 @@ public:
 		UINT frameOffset = sizeof(SCENE_DATA) + masterListOfVerts.size() * sizeof(H2B::VERTEX);
 		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation3));
-		memcpy(&transferMemoryLocation3[offset], &scene, sizeof(scene));
-		memcpy(&transferMemoryLocation3[offset + frameOffset], &scene, sizeof(scene));
+		memcpy(&transferMemoryLocation3[0], &scene, sizeof(scene));
+		memcpy(&transferMemoryLocation3[frameOffset], &scene, sizeof(scene));
 		constantBuffer->Unmap(0, nullptr);
 	}
 
-	void LoadObject(std::string path) {
+	void LoadObject(std::string path, std::string friendlyName) {
 		H2B::Parser tempParser = importer.LoadOBJ(path);
+
+		/*
+		struct BATCH {
+			unsigned indexCount, indexOffset;
+		};
+		*/
+
+		/*
+		struct MESH {
+			const char* name;
+			BATCH drawInfo;
+			unsigned materialIndex;
+		};
+	*/
+		ID3D12Device5* device;
+		d3d.GetDevice((void**)&device);
+
+		MeshObject tempObject;
+
+		H2B::MESH tempMesh;
+		for (size_t i = 0; i < tempParser.meshCount; i++)
+		{
+			tempMesh = tempParser.meshes[i];
+			tempObject.meshes.push_back(tempMesh);
+		}
+
+		H2B::MATERIAL tempMat;
+		for (size_t i = 0; i < tempParser.materialCount; i++)
+		{
+			tempMat = tempParser.materials[i];
+			tempObject.materials.push_back(tempMat);
+		}
+
+		tempObject.vertices = tempParser.vertices;
+		tempObject.indices = tempParser.indices;
+		tempObject.indexCount = tempParser.indexCount;
+		tempObject.vertexCount = tempParser.vertexCount;
+
+		tempObject.CreateVertexBuffer(device);
+		tempObject.CreateIndexBuffer(device);
+
+		modelMap.insert(std::pair<std::string, MeshObject>(friendlyName, tempObject));
 
 		for (size_t i = 0; i < tempParser.vertices.size(); i++)
 		{
@@ -436,12 +488,6 @@ public:
 		{
 			masterListOfIndices.push_back(tempParser.indices[i]);
 		}
-
-		unsigned int currentOffset = masterListOfVerts.size() * sizeof(H2B::VERTEX);
-
-		MESH_DATA temp;
-		temp.material = tempParser.materials[0].attrib;
-		worldMeshes.push_back(temp);
 	}
 
 	~Renderer()

@@ -1,0 +1,10 @@
+^C:\USERS\ROB\DESKTOP\DEV4\DEV4\DIRECTX 12\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/Rob/Desktop/Dev4/DEV4/DirectX 12" "-BC:/Users/Rob/Desktop/Dev4/DEV4/DirectX 12/build" --check-stamp-file "C:/Users/Rob/Desktop/Dev4/DEV4/DirectX 12/build/CMakeFiles/generate.stamp"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

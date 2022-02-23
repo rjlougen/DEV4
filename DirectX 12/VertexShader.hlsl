@@ -23,9 +23,9 @@ struct SCENE_DATA
 
 struct MESH_DATA
 {
-    matrix world; // 12
+    matrix world[16];
     OBJ_ATTRIBUTES material;
-	uint padding[28]; // 28
+	//uint padding[28];
 };
 
 struct OUTPUT_TO_RASTERIZER
@@ -45,17 +45,18 @@ struct VS_INPUT
 ConstantBuffer<SCENE_DATA> cameraAndLights : register(b0, space0);
 ConstantBuffer<MESH_DATA> meshInfo : register(b1, space0);
 
-OUTPUT_TO_RASTERIZER main(VS_INPUT inputVertex)
+OUTPUT_TO_RASTERIZER main(VS_INPUT inputVertex, uint instanceID : SV_InstanceID)
 {
     OUTPUT_TO_RASTERIZER returnVal;
+    //inputVertex.Pos.x += instanceID * 2;
     returnVal.posH = float4(inputVertex.Pos, 1.0f);
-    returnVal.posH = mul(meshInfo.world, returnVal.posH);
+    returnVal.posH = mul(meshInfo.world[instanceID], returnVal.posH);
     returnVal.posH = mul(cameraAndLights.viewMatrix, returnVal.posH);
     returnVal.posH = mul(cameraAndLights.projectionMatrix, returnVal.posH);
 
-    returnVal.nrmW = mul(meshInfo.world, float4(inputVertex.Norm, 1.0f));
+    returnVal.nrmW = mul(meshInfo.world[instanceID], float4(inputVertex.Norm, 1.0f));
 
-    returnVal.posW = mul(meshInfo.world, float4(inputVertex.Pos, 1.0f));
+    returnVal.posW = mul(meshInfo.world[instanceID], float4(inputVertex.Pos, 1.0f));
 
     return returnVal;
 }

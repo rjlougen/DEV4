@@ -1,6 +1,6 @@
-^C:\USERS\ROB42\DESKTOP\DEV4 PROJECT\DEV4\DIRECTX 12\BUILD\CMAKEFILES\22C8A71B780714F67C4B2ED9E02B85EA\GENERATE.STAMP.RULE
+^C:\USERS\ROB\DESKTOP\DEV4\DEV4\DIRECTX 12\BUILD\CMAKEFILES\5D8EDB3345291BDF606E28CC1FF7B0B1\GENERATE.STAMP.RULE
 setlocal
-"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/rob42/Desktop/Dev4 Project/DEV4/DirectX 12" "-BC:/Users/rob42/Desktop/Dev4 Project/DEV4/DirectX 12/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/rob42/Desktop/Dev4 Project/DEV4/DirectX 12/build/Assignment_2_D3D12.sln"
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/Rob/Desktop/Dev4/DEV4/DirectX 12" "-BC:/Users/Rob/Desktop/Dev4/DEV4/DirectX 12/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/Rob/Desktop/Dev4/DEV4/DirectX 12/build/Assignment_2_D3D12.sln"
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
