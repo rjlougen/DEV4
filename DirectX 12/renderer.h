@@ -282,7 +282,7 @@ public:
 	}
 
 	void CreateLights() {
-		scene.sunColor = { 0.9f, 0.9f, 1.0f };
+		scene.sunColor = { 1.9f, 1.9f, 2.0f };
 		scene.sunDir = { -1.0f, -1.0f, 2.0f };
 		scene.camPos = { 0.75f, 0.25f, -1.5f, 1.0f };
 		scene.sunAmbient = { 0.25f, 0.25f, 0.35f, 1.0f };

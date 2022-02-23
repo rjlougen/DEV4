@@ -1,2 +1,5 @@
-﻿  main.cpp
+﻿..\VertexShader.hlsl(70,20): warning G089EA9BC: implicit truncation of vector type [-Wconversion]
+      returnVal.posW = mul(meshInfo.world[instanceID], float4(inputVertex.Pos, 1.0f));
+                     ^
+  
   Assignment_2_D3D12.vcxproj -> C:\Users\Rob\Desktop\Dev4\DEV4\DirectX 12\build\Debug\Assignment_2_D3D12.exe

@@ -63,7 +63,9 @@ OUTPUT_TO_RASTERIZER main(VS_INPUT inputVertex, uint instanceID : SV_InstanceID)
     returnVal.posH = mul(cameraAndLights.viewMatrix, returnVal.posH);
     returnVal.posH = mul(cameraAndLights.projectionMatrix, returnVal.posH);
 
-    returnVal.nrmW = mul(meshInfo.world[instanceID], float4(inputVertex.Norm, 1.0f));
+    // Local normal
+    float3 Normal = mul((float3x3) meshInfo.world[instanceID], inputVertex.Norm);
+    returnVal.nrmW = Normal;
 
     returnVal.posW = mul(meshInfo.world[instanceID], float4(inputVertex.Pos, 1.0f));
 
