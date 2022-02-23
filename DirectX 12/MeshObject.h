@@ -112,12 +112,13 @@ public:
 
 			D3D12_GPU_VIRTUAL_ADDRESS address = constantBuffer->GetGPUVirtualAddress();
 
-			cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
+			cmd->SetGraphicsRootConstantBufferView(1, (address + sceneOffset + (frameOffset * frameNumber)));
 		}
 
 		// Set vertex buffer
-		if (vertexBuffer)
+		if (vertexBuffer) {
 			cmd->IASetVertexBuffers(0, 1, &vertexView);
+		}
 		// Set index buffer
 		if (indexBuffer)
 			cmd->IASetIndexBuffer(&indexView);
@@ -127,6 +128,19 @@ public:
 
 	void DrawObject(ID3D12GraphicsCommandList* cmd) {
 		Bind(cmd);
-		cmd->DrawIndexedInstanced(indices.size(), instanceCount, 0, 0, 0);
+		for (size_t i = 0; i < meshes.size(); i++)
+		{
+			float root32BitConstants[] =
+			{
+				materials[meshes[i].materialIndex].attrib.Kd.x,
+				materials[meshes[i].materialIndex].attrib.Kd.y,
+				materials[meshes[i].materialIndex].attrib.Kd.z,
+				materials[meshes[i].materialIndex].attrib.Ns,
+			};
+			cmd->SetGraphicsRoot32BitConstants(2, 4, root32BitConstants, 0);
+			//cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
+			cmd->DrawIndexedInstanced(meshes[i].drawInfo.indexCount, instanceCount, meshes[i].drawInfo.indexOffset, 0, 0);
+			//sceneOffset += sizeof(MESH_DATA);
+		}
 	}
 };

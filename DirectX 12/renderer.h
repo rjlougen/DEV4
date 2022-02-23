@@ -70,15 +70,18 @@ public:
 
 		for (size_t i = 0; i < gameLevel.size(); i++)
 		{
+			// @TODO - this is hard coded safety, remove if statement at some point
 			// load object
-			if (gameLevel[i].modelName == "Cube_Grass_Single") {
+			if (gameLevel[i].modelName == "Cube_Grass_Single" || gameLevel[i].modelName == "RockPlatforms_3") {
 				if (modelMap.find(gameLevel[i].modelName) == modelMap.end()) {
 					LoadObject("../" + gameLevel[i].modelName + ".h2b", gameLevel[i].modelName);
+					GMatrix.RotateXLocalF(gameLevel[i].worldMatrix, -1.5708, gameLevel[i].worldMatrix);
 					modelMap[gameLevel[i].modelName].meshInstances.world[0] = gameLevel[i].worldMatrix;
 					modelMap[gameLevel[i].modelName].meshInstances.material = modelMap[gameLevel[i].modelName].materials[0].attrib;
 					modelMap[gameLevel[i].modelName].instanceCount++;
 				}
 				else {
+					GMatrix.RotateXLocalF(gameLevel[i].worldMatrix, -1.5708, gameLevel[i].worldMatrix);
 					modelMap[gameLevel[i].modelName].meshInstances.world[modelMap[gameLevel[i].modelName].instanceCount] = gameLevel[i].worldMatrix;
 					modelMap[gameLevel[i].modelName].meshInstances.material = modelMap[gameLevel[i].modelName].materials[0].attrib;
 					modelMap[gameLevel[i].modelName].instanceCount++;
@@ -204,14 +207,15 @@ public:
 		};
 		
 		// Used in rootSignature
-		CD3DX12_ROOT_PARAMETER rootParam[2];
+		CD3DX12_ROOT_PARAMETER rootParam[3] = {};
 		rootParam[0].InitAsConstantBufferView(0, 0); // camera & lights
 		rootParam[1].InitAsConstantBufferView(1, 0); // mesh
+		rootParam[2].InitAsConstants((sizeof(float) / 4) * 4, 2, 0); // instance information
 
 		// create root signature
 		// specifies the data types that shaders should expect from the application
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init(2, rootParam, 0, nullptr, 
+		rootSignatureDesc.Init(3, rootParam, 0, nullptr, 
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 		Microsoft::WRL::ComPtr<ID3DBlob> signature;
 		D3D12SerializeRootSignature(&rootSignatureDesc, 
@@ -285,13 +289,13 @@ public:
 			cmd->SetPipelineState(pipeline.Get());
 
 			// now we can draw
-			cmd->IASetVertexBuffers(0, 1, &vertexView);
-			cmd->IASetIndexBuffer(&indexView);
-			cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			//cmd->IASetVertexBuffers(0, 1, &vertexView);
+			//cmd->IASetIndexBuffer(&indexView);
+			//cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 			//RotateLogo();
 			
-			cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
+			//cmd->SetGraphicsRootConstantBufferView(1, Helpers::CalculateConstantBufferByteSize(address + sceneOffset + (frameOffset * frameNumber)));
 			//cmd->DrawIndexedInstanced(masterListOfIndices.size(), 4, 0, 0, 0);
 			 
 			for (std::map<std::string, MeshObject>::iterator it = modelMap.begin(); it != modelMap.end(); ++it) {
@@ -432,19 +436,6 @@ public:
 	void LoadObject(std::string path, std::string friendlyName) {
 		H2B::Parser tempParser = importer.LoadOBJ(path);
 
-		/*
-		struct BATCH {
-			unsigned indexCount, indexOffset;
-		};
-		*/
-
-		/*
-		struct MESH {
-			const char* name;
-			BATCH drawInfo;
-			unsigned materialIndex;
-		};
-	*/
 		ID3D12Device5* device;
 		d3d.GetDevice((void**)&device);
 

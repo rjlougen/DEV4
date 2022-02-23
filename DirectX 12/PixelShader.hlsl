@@ -38,14 +38,23 @@ struct MESH_DATA
     //uint padding[28]; // 28
 };
 
+struct INSTANCE_DATA
+{
+    float KdX;
+    float KdY;
+    float KdZ;
+    float Ns;
+};
+
 ConstantBuffer<SCENE_DATA> cameraAndLights : register(b0, space0);
 ConstantBuffer<MESH_DATA> meshInfo : register(b1, space0);
+ConstantBuffer<INSTANCE_DATA> instanceInfo : register(b2, space0);
 
 float4 main(OUTPUT_TO_RASTERIZER inputPixel) : SV_TARGET
 {
     float3 V = normalize(cameraAndLights.camPos - inputPixel.posW);
     float3 refl = reflect(normalize(cameraAndLights.sunDir), normalize(inputPixel.nrmW));
-    float4 color = 1.0f * cameraAndLights.sunColor * pow(saturate(dot(refl, V)), max(meshInfo.material.Ns, 0.00001f));
-    color += float4(meshInfo.material.Kd, 1.0f) * cameraAndLights.sunColor * clamp(saturate(dot(-cameraAndLights.sunDir, float4(inputPixel.nrmW, 1.0f))) + cameraAndLights.sunAmbient, 0.0f, 1.0f);
+    float4 color = 1.0f * cameraAndLights.sunColor * pow(saturate(dot(refl, V)), max(instanceInfo.Ns, 0.00001f));
+    color += float4(instanceInfo.KdX, instanceInfo.KdY, instanceInfo.KdZ, 1.0f) * cameraAndLights.sunColor * clamp(saturate(dot(-cameraAndLights.sunDir, float4(inputPixel.nrmW, 1.0f))) + cameraAndLights.sunAmbient, 0.0f, 1.0f);
     return saturate(color /*+ float4(reflect, 1.0f)*/);
 };

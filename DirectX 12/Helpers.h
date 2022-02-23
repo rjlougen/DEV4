@@ -39,6 +39,14 @@ struct MESH_DATA {
 	//unsigned padding[28];
 };
 
+struct INSTANCE_DATA
+{
+	float KdX;
+	float KdY;
+	float KdZ;
+	float Ns;
+};
+
 struct GameLevel {
 	std::string type;
 	std::string modelName;

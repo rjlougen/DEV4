@@ -24,7 +24,7 @@ struct SCENE_DATA
 struct MESH_DATA
 {
     matrix world[16];
-    OBJ_ATTRIBUTES material;
+    OBJ_ATTRIBUTES material ;
 	//uint padding[28];
 };
 
@@ -42,8 +42,17 @@ struct VS_INPUT
     float3 Norm : NORMAL;
 };
 
+struct INSTANCE_DATA
+{
+    float KdX;
+    float KdY;
+    float KdZ;
+    float Ns;
+};
+
 ConstantBuffer<SCENE_DATA> cameraAndLights : register(b0, space0);
 ConstantBuffer<MESH_DATA> meshInfo : register(b1, space0);
+ConstantBuffer<INSTANCE_DATA> instanceInfo : register(b2, space0);
 
 OUTPUT_TO_RASTERIZER main(VS_INPUT inputVertex, uint instanceID : SV_InstanceID)
 {
